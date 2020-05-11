@@ -67,17 +67,23 @@ public:
         }
     };
 
-    std::tuple<FrameSnapshot, bool> makeSnapshot(const cv::Mat &_frame, const FrameSnapshot &relativity);
+    std::tuple<FrameSnapshot, bool> makeSnapshot(const cv::Mat &frame, const FrameSnapshot &relativity);
 
-    struct PoseSnapshot {
-        PoseSnapshot(Eigen::Quaterniond rotation,
-                     Eigen::Vector3d translation)
-                : rotation(std::move(rotation)),
-                  translation(std::move(translation)) {};
-        // relative to one of previous frames
+    struct Pose {
+        // relative to one of previous frames when used as change, absolute values otherwise
         Eigen::Quaterniond rotation;
         Eigen::Vector3d translation;
+        FrameSnapshot snapshot;
+
+        Pose(Eigen::Quaterniond rotation,
+             Eigen::Vector3d translation,
+             const FrameSnapshot& snapshot)
+                : rotation(std::move(rotation)),
+                  translation(std::move(translation)),
+                  snapshot(snapshot) {};
     };
+
+    Pose estimatePoseChange(const FrameSnapshot &from, const cv::Mat &frame);
 
 private:
     cv::Ptr<cv::FeatureDetector> detector;
@@ -92,7 +98,8 @@ private:
 //    cv::Mat previousFeatures;
     cv::BFMatcher matcher;
 
-    std::deque<FrameSnapshot> framesHistory;
+//    std::deque<FrameSnapshot> framesHistory;
+    std::deque<Pose> poseHistory;
 
     Eigen::Quaterniond estRotation;
     Eigen::Vector3d estTranslation;

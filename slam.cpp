@@ -23,7 +23,7 @@ SLAM::SLAM() {
 
     // detector = cv::FastFeatureDetector::create();
     extractor = cv::ORB::create(
-            500,
+            100,
             1.2,
             3,
             31,
@@ -41,71 +41,66 @@ SLAM::SLAM() {
     estRotation = Eigen::Quaterniond(1, 0, 0, 0);
     estTranslation = Eigen::Vector3d(0, 0, 0);
 
-    framesHistory.emplace_back(std::move(FrameSnapshot()));
+//    framesHistory.emplace_back(std::move(FrameSnapshot()));
+
+    const int averageBetweenFrames = 1;
+    for (int i = 0; i < averageBetweenFrames; i++) {
+        poseHistory.emplace_back(Pose(
+                Eigen::Quaterniond(1, 0, 0, 0),
+                Eigen::Vector3d(0, 0, 0),
+                FrameSnapshot()
+        ));
+    }
 }
 
 SLAM::~SLAM() = default;
 
 // TODO: fill map with projections
 void SLAM::feed(const cv::Mat &frame) {
-    // TODO use more than 1
-    auto[snapshot, cutoff] = makeSnapshot(frame, framesHistory.back());
-    if (cutoff) {
-        framesHistory.emplace_back(snapshot);
-        framesHistory.pop_front();
-        return;
+    Eigen::Quaterniond averageRotation(0, 0, 0, 0);
+    Eigen::Vector3d averageTranslation(0, 0, 0);
+    FrameSnapshot snapshot;
+    for (auto &pose:poseHistory) {
+        auto poseChange = estimatePoseChange(pose.snapshot, frame);
+        auto rotation = poseChange.rotation * pose.rotation;
+        // TODO: premultiply change by rotation
+        auto translation = poseChange.translation + pose.translation;
+
+        averageTranslation += translation;
+        averageRotation = Eigen::Quaterniond(
+                averageRotation.w() + rotation.w(),
+                averageRotation.x() + rotation.x(),
+                averageRotation.y() + rotation.y(),
+                averageRotation.z() + rotation.z()
+        );
+
+        snapshot = poseChange.snapshot; // use last snapshot
     }
-
-
-    cv::Mat essential, rotation, translation, mask;
-    essential = findEssentialMat(snapshot.points, snapshot.rPoints, cameraMatrix, cv::RANSAC, 0.999, 0.15, mask);
-    recoverPose(essential, snapshot.points, snapshot.rPoints, cameraMatrix, rotation, translation, 99, mask);
-
-    // 1
-//    estTranslation += estRotation.toRotationMatrix() * Eigen::Vector3d(
-    // 2
-    estTranslation += Eigen::Vector3d(
-            translation.at<double>(0, 0),
-            translation.at<double>(1, 0),
-            translation.at<double>(2, 0)
+    averageTranslation /= poseHistory.size();
+    averageRotation = Eigen::Quaterniond(
+            averageRotation.w() / poseHistory.size(),
+            averageRotation.x() / poseHistory.size(),
+            averageRotation.y() / poseHistory.size(),
+            averageRotation.z() / poseHistory.size()
     );
 
+    // do we actually need this?
+    // auto translationChange = averageTranslation - poseHistory.back().translation;
+    // auto rotationChange = averageRotation * poseHistory.back().rotation.inverse();
 
-    Eigen::Matrix3d frameRotation;
-    frameRotation << rotation.at<double>(0, 0),
-            rotation.at<double>(0, 1),
-            rotation.at<double>(0, 2),
-            rotation.at<double>(1, 0),
-            rotation.at<double>(1, 1),
-            rotation.at<double>(1, 2),
-            rotation.at<double>(2, 0),
-            rotation.at<double>(2, 1),
-            rotation.at<double>(2, 2);
+    auto pose = Pose(averageRotation, averageTranslation, snapshot);
+    poseHistory.emplace_back(pose);
+    poseHistory.pop_front();
 
-
-    auto rotationDerivative = Eigen::Quaterniond(frameRotation);
-    if (abs(rotationDerivative.w()) < 0.0015)
-        rotationDerivative = Eigen::Quaterniond(1, 0, 0, 0);
-//    std::cout << "q=" <<
-//              estRotation.w() << ", " <<
-//              estRotation.x() << ", " <<
-//              estRotation.y() << ", " <<
-//              estRotation.z() << std::endl;
-    estRotation = rotationDerivative * estRotation;
-    estRotation.normalize();
-
-    path.emplace_back(estTranslation);
-
-//    std::cout << "translation: " << estTranslation << std::endl;
-//    std::cout << "rotation: " << estRotation << std::endl;
+    path.emplace_back(pose.translation);
 
     cv::Mat matchesImage;
     cv::drawMatches(
             frame,
-            snapshot.keypoints,
+            pose.snapshot.keypoints,
             frame,
-            snapshot.rKeypoints,
-            snapshot.matches,
+            pose.snapshot.rKeypoints,
+            pose.snapshot.matches,
             matchesImage,
             cv::Scalar::all(-1),
             cv::Scalar::all(-1),
@@ -113,9 +108,6 @@ void SLAM::feed(const cv::Mat &frame) {
             cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS
     );
     imshow("matches", matchesImage);
-
-    framesHistory.emplace_back(snapshot);
-    framesHistory.pop_front();
 }
 
 void SLAM::savePathAsImage(const std::string &name, bool volumetric) {
@@ -181,17 +173,17 @@ std::tuple<SLAM::FrameSnapshot, bool> SLAM::makeSnapshot(const cv::Mat &_frame, 
 
     std::vector<cv::DMatch> filteredMatches;
     double matchDistance = minDistance < 10 ? 90 : 9 * minDistance;
+    auto maxDelta = (frame.cols + frame.rows) / 300;
     for (int i = 0; i < features.rows; i++) {
         if (matches[i].distance <= matchDistance) {
             auto delta = keypoints[matches[i].queryIdx].pt - relativity.keypoints[matches[i].trainIdx].pt;
-            auto maxDelta = (frame.cols + frame.rows) / 300;
             if (abs(delta.x) + abs(delta.y) < maxDelta) {
                 filteredMatches.emplace_back(matches[i]);
             }
         }
     }
 
-    if (filteredMatches.size() < 20) {
+    if (filteredMatches.size() < 10) {
         auto msg = ("not enough matches: " +
                     std::to_string(matches.size()) +
                     " -> " +
@@ -220,4 +212,48 @@ std::tuple<SLAM::FrameSnapshot, bool> SLAM::makeSnapshot(const cv::Mat &_frame, 
                     filteredMatches,
                     features
             ), false};
+}
+
+SLAM::Pose SLAM::estimatePoseChange(const SLAM::FrameSnapshot &from, const cv::Mat &frame) {
+    auto[snapshot, cutoff] = makeSnapshot(frame, from);
+    if (cutoff) {
+        return Pose(
+                Eigen::Quaterniond(1, 0, 0, 0),
+                Eigen::Vector3d(0, 0, 0),
+                snapshot
+        );
+    }
+
+    cv::Mat essential, rotation, translation, mask;
+    essential = findEssentialMat(snapshot.points, snapshot.rPoints, cameraMatrix, cv::RANSAC, 0.999, 0.15, mask);
+    recoverPose(essential, snapshot.points, snapshot.rPoints, cameraMatrix, rotation, translation, 99, mask);
+
+    // 1
+//    estTranslation += estRotation.toRotationMatrix() * Eigen::Vector3d(
+    // 2
+    auto translationDifference = Eigen::Vector3d(
+            translation.at<double>(0, 0),
+            translation.at<double>(1, 0),
+            translation.at<double>(2, 0)
+    );
+
+
+    Eigen::Matrix3d frameRotation;
+    frameRotation << rotation.at<double>(0, 0),
+            rotation.at<double>(0, 1),
+            rotation.at<double>(0, 2),
+            rotation.at<double>(1, 0),
+            rotation.at<double>(1, 1),
+            rotation.at<double>(1, 2),
+            rotation.at<double>(2, 0),
+            rotation.at<double>(2, 1),
+            rotation.at<double>(2, 2);
+
+
+    auto rotationDerivative = Eigen::Quaterniond(frameRotation);
+    if (abs(rotationDerivative.w()) < 0.0015)
+        rotationDerivative = Eigen::Quaterniond(1, 0, 0, 0);
+
+
+    return SLAM::Pose(rotationDerivative, translationDifference, snapshot);
 }
