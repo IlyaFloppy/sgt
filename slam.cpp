@@ -23,7 +23,7 @@ SLAM::SLAM() {
 
     // detector = cv::FastFeatureDetector::create();
     extractor = cv::ORB::create(
-            100,
+            300,
             1.2,
             3,
             31,
@@ -33,21 +33,17 @@ SLAM::SLAM() {
             31,
             10
     );
-    // extractor = cv::BRISK::create();
     detector = extractor;
 
     matcher = *cv::BFMatcher::create(cv::NORM_L2, false);
 
-    estRotation = Eigen::Quaterniond(1, 0, 0, 0);
-    estTranslation = Eigen::Vector3d(0, 0, 0);
-
 //    framesHistory.emplace_back(std::move(FrameSnapshot()));
 
-    const int averageBetweenFrames = 1;
+    const int averageBetweenFrames = 3;
     for (int i = 0; i < averageBetweenFrames; i++) {
         poseHistory.emplace_back(Pose(
                 Eigen::Quaterniond(1, 0, 0, 0),
-                Eigen::Vector3d(0, 0, 0),
+                Eigen::Vector3d(0, 0, 500),
                 FrameSnapshot()
         ));
     }
@@ -61,10 +57,11 @@ void SLAM::feed(const cv::Mat &frame) {
     Eigen::Vector3d averageTranslation(0, 0, 0);
     FrameSnapshot snapshot;
     for (auto &pose:poseHistory) {
-        auto poseChange = estimatePoseChange(pose.snapshot, frame);
+        auto poseChange = estimatePoseChange2D(pose, frame);
         auto rotation = poseChange.rotation * pose.rotation;
         // TODO: premultiply change by rotation
-        auto translation = poseChange.translation + pose.translation;
+        // auto translation = poseChange.translation + pose.translation;
+        auto translation = pose.rotation.toRotationMatrix() * poseChange.translation + pose.translation;
 
         averageTranslation += translation;
         averageRotation = Eigen::Quaterniond(
@@ -172,8 +169,8 @@ std::tuple<SLAM::FrameSnapshot, bool> SLAM::makeSnapshot(const cv::Mat &_frame, 
     }
 
     std::vector<cv::DMatch> filteredMatches;
-    double matchDistance = minDistance < 10 ? 90 : 9 * minDistance;
-    auto maxDelta = (frame.cols + frame.rows) / 300;
+    double matchDistance = minDistance < 10 ? 150 : 15 * minDistance;
+    auto maxDelta = (frame.cols + frame.rows) / 100;
     for (int i = 0; i < features.rows; i++) {
         if (matches[i].distance <= matchDistance) {
             auto delta = keypoints[matches[i].queryIdx].pt - relativity.keypoints[matches[i].trainIdx].pt;
@@ -214,7 +211,7 @@ std::tuple<SLAM::FrameSnapshot, bool> SLAM::makeSnapshot(const cv::Mat &_frame, 
             ), false};
 }
 
-SLAM::Pose SLAM::estimatePoseChange(const SLAM::FrameSnapshot &from, const cv::Mat &frame) {
+SLAM::Pose SLAM::estimatePoseChange3D(const SLAM::FrameSnapshot &from, const cv::Mat &frame) {
     auto[snapshot, cutoff] = makeSnapshot(frame, from);
     if (cutoff) {
         return Pose(
@@ -256,4 +253,88 @@ SLAM::Pose SLAM::estimatePoseChange(const SLAM::FrameSnapshot &from, const cv::M
 
 
     return SLAM::Pose(rotationDerivative, translationDifference, snapshot);
+}
+
+SLAM::Pose SLAM::estimatePoseChange2D(const SLAM::Pose &from, const cv::Mat &frame) {
+    auto[snapshot, cutoff] = makeSnapshot(frame, from.snapshot);
+    if (cutoff) {
+        return Pose(
+                Eigen::Quaterniond(1, 0, 0, 0),
+                Eigen::Vector3d(0, 0, 0),
+                snapshot
+        );
+    }
+
+    int matches = snapshot.matches.size();
+    int lines = matches * (matches - 1) / 2;
+    // distances
+    Eigen::MatrixXd dPrev(lines, 1);
+    Eigen::MatrixXd dCur(lines, 1);
+    // angles
+    Eigen::MatrixXd aPrev(lines, 1);
+    Eigen::MatrixXd aCur(lines, 1);
+    // translations
+    Eigen::MatrixXd translations(matches, 2);
+
+    int match1Idx = 0;
+    int match2Idx = 0;
+    int lineIdx = 0;
+    for (auto &match1:snapshot.matches) {
+        auto currentFramePoint1 = snapshot.keypoints[match1.queryIdx].pt;
+        auto prevFramePoint1 = snapshot.rKeypoints[match1.trainIdx].pt;
+
+        translations(match1Idx, 0) = currentFramePoint1.x - prevFramePoint1.x;
+        translations(match1Idx, 1) = currentFramePoint1.y - prevFramePoint1.y;
+
+        match2Idx = 0;
+
+        for (auto &match2:snapshot.matches) {
+            if (match1Idx >= match2Idx) {
+                ++match2Idx;
+                continue;
+            }
+            ++match2Idx;
+
+            auto currentFramePoint2 = snapshot.keypoints[match2.queryIdx].pt;
+            auto dxCur = currentFramePoint1.x - currentFramePoint2.x;
+            auto dyCur = currentFramePoint1.y - currentFramePoint2.y;
+            dCur(lineIdx, 0) = sqrt(dxCur * dxCur + dyCur * dyCur);
+            aCur(lineIdx, 0) = atan2(dyCur, dxCur);
+
+
+            auto prevFramePoint2 = snapshot.rKeypoints[match2.trainIdx].pt;
+            auto dxPrev = prevFramePoint1.x - prevFramePoint2.x;
+            auto dyPrev = prevFramePoint1.y - prevFramePoint2.y;
+            dPrev(lineIdx, 0) = sqrt(dxPrev * dxPrev + dyPrev * dyPrev);
+            aPrev(lineIdx, 0) = atan2(dyPrev, dxPrev);
+
+            ++lineIdx;
+        }
+
+        ++match1Idx;
+    }
+    auto dPrevT = dPrev.transpose();
+    auto s = (dPrevT * dPrev).inverse() * dPrevT * dCur; // 1x1 matrix
+    double scale = s(0, 0);
+
+    auto aChange = aCur - aPrev;
+    double angle = aChange.mean();
+
+    auto translation2D = translations.colwise().mean();
+
+    // TODO: rescale to meters or whatever
+    return Pose(
+            Eigen::Quaterniond(
+                    cos(angle / 2),
+                    0,
+                    0,
+                    sin(angle / 2)
+            ),
+            Eigen::Vector3d(
+                    -translation2D.x(),
+                    translation2D.y(),
+                    from.translation.z() * (1 - scale)
+            ),
+            snapshot
+    );
 }

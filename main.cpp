@@ -8,7 +8,8 @@
 
 int main() {
 //    cv::VideoCapture capture = cv::VideoCapture("iss_fcpx.mp4");
-    cv::VideoCapture capture = cv::VideoCapture("mc.mov");
+//    cv::VideoCapture capture = cv::VideoCapture("mc.mov");
+    cv::VideoCapture capture = cv::VideoCapture("sample_mpg.avi");
     SLAM slam;
 
     cv::Mat frame;

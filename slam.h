@@ -77,13 +77,17 @@ public:
 
         Pose(Eigen::Quaterniond rotation,
              Eigen::Vector3d translation,
-             const FrameSnapshot& snapshot)
+             const FrameSnapshot &snapshot)
                 : rotation(std::move(rotation)),
                   translation(std::move(translation)),
                   snapshot(snapshot) {};
     };
 
-    Pose estimatePoseChange(const FrameSnapshot &from, const cv::Mat &frame);
+    // sounds good, doesn't work
+    Pose estimatePoseChange3D(const FrameSnapshot &from, const cv::Mat &frame);
+
+    // this should work. sometimes.
+    Pose estimatePoseChange2D(const Pose &from, const cv::Mat &frame);
 
 private:
     cv::Ptr<cv::FeatureDetector> detector;
@@ -94,14 +98,8 @@ private:
     cv::Mat cameraMatrix;
     cv::Mat distCoeffs;
 
-//    std::vector<cv::KeyPoint> previousKeypoints;
-//    cv::Mat previousFeatures;
     cv::BFMatcher matcher;
 
-//    std::deque<FrameSnapshot> framesHistory;
     std::deque<Pose> poseHistory;
-
-    Eigen::Quaterniond estRotation;
-    Eigen::Vector3d estTranslation;
     std::vector<Eigen::Vector3d> path;
 };
