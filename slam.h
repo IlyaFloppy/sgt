@@ -8,10 +8,17 @@
 #include <cmath>
 
 #include <opencv2/opencv.hpp>
+#include <opencv2/imgproc.hpp>
+
+#include <gdal.h>
+#include <gdal_priv.h>
 
 #include "Eigen/Geometry"
 
 #include "matplotlibcpp.h"
+#include "frame_snapshot.h"
+#include "pose.h"
+#include "mapper.h"
 
 class SLAM {
 public:
@@ -23,65 +30,7 @@ public:
 
     void savePathAsImage(const std::string &name, bool volumetric);
 
-    struct FrameSnapshot {
-        // used for matching
-        std::vector<cv::KeyPoint> keypoints;
-        std::vector<cv::KeyPoint> rKeypoints;
-        // used for restoring pose
-        std::vector<cv::Point2f> points;
-        std::vector<cv::Point2f> rPoints;
-
-        std::vector<cv::DMatch> matches;
-
-        cv::Mat features;
-
-        FrameSnapshot() {};
-
-        FrameSnapshot(const FrameSnapshot &snapshot) {
-            keypoints = snapshot.keypoints;
-            rKeypoints = snapshot.rKeypoints;
-            points = snapshot.points;
-            rPoints = snapshot.rPoints;
-            matches = snapshot.matches;
-            features = snapshot.features;
-        }
-
-        FrameSnapshot(
-                std::vector<cv::KeyPoint> keypoints,
-                std::vector<cv::Point2f> points,
-                std::vector<cv::KeyPoint> rKeypoints,
-                std::vector<cv::Point2f> rPoints,
-                std::vector<cv::DMatch> matches,
-                cv::Mat features)
-                : keypoints(std::move(keypoints)),
-                  rKeypoints(std::move(rKeypoints)),
-                  points(std::move(points)),
-                  rPoints(std::move(rPoints)),
-                  matches(std::move(matches)),
-                  features(std::move(features)) {
-//            std::cout << this->matches.size() << std::endl;
-        }
-
-        bool isCutOff() const {
-            return keypoints.empty();
-        }
-    };
-
     std::tuple<FrameSnapshot, bool> makeSnapshot(const cv::Mat &frame, const FrameSnapshot &relativity);
-
-    struct Pose {
-        // relative to one of previous frames when used as change, absolute values otherwise
-        Eigen::Quaterniond rotation;
-        Eigen::Vector3d translation;
-        FrameSnapshot snapshot;
-
-        Pose(Eigen::Quaterniond rotation,
-             Eigen::Vector3d translation,
-             const FrameSnapshot &snapshot)
-                : rotation(std::move(rotation)),
-                  translation(std::move(translation)),
-                  snapshot(snapshot) {};
-    };
 
     // sounds good, doesn't work
     Pose estimatePoseChange3D(const FrameSnapshot &from, const cv::Mat &frame);
@@ -90,6 +39,11 @@ public:
     Pose estimatePoseChange2D(const Pose &from, const cv::Mat &frame);
 
 private:
+    double pixelSize;
+    double focalLength;
+    double frameWidthPx;
+    double frameHeightPx;
+
     cv::Ptr<cv::FeatureDetector> detector;
     cv::Ptr<cv::DescriptorExtractor> extractor;
 
@@ -102,4 +56,7 @@ private:
 
     std::deque<Pose> poseHistory;
     std::vector<Eigen::Vector3d> path;
+    std::vector<Eigen::Vector2d> geoPath;
+
+    Mapper mapper;
 };
