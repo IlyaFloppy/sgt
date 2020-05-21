@@ -16,8 +16,6 @@ struct Tile {
     const int nRows = 1024;
     const int nCols = 1024;
 
-    // lat & lon in degrees
-    // size in seconds; has to be even
     Tile(int lat,
          int lon,
          int size,

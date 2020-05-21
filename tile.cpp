@@ -5,10 +5,10 @@
 #include "tile.h"
 
 Tile::Tile(int lat, int lon, int size, GDALDriver *pDriver) :
-        latMin(lat * realToInternal - size / 2),
-        latMax(lat * realToInternal + size / 2),
-        lonMin(lon * realToInternal - size / 2),
-        lonMax(lon * realToInternal + size / 2) {
+        latMin(lat - size / 2),
+        latMax(lat + size / 2),
+        lonMin(lon - size / 2),
+        lonMax(lon + size / 2) {
     std::string filename =
             "tiles/" +
             std::to_string(latMin) + ", " +
