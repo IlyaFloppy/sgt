@@ -27,8 +27,8 @@ public:
     const int lonMax;
     const int size;
 
-    const int nRows = 256;
-    const int nCols = 256;
+    const int nRows = 128;
+    const int nCols = 128;
 
     uint8_t *data;
 
@@ -50,4 +50,6 @@ public:
     bool contains(GeoCoords coords) const;
 
     friend bool operator<(const Tile &lhs, const Tile &rhs);
+
+    friend bool operator==(const Tile &lhs, const Tile &rhs);
 };

@@ -15,6 +15,7 @@ Mapper::~Mapper() {
 
 void Mapper::feed(const Pose &pose, const cv::Mat &frame) {
 
+    // TODO: feed not only into center tile
     auto coords = Tile::GeoCoords(pose.geo.x(), pose.geo.y());
     Tile tile = getTileAt(coords);
     tile.feed(pose, frame);
@@ -38,11 +39,10 @@ Tile Mapper::getTileAt(const Tile::GeoCoords &coords) {
         }
     }
 
-    int size = 500; // internal units
-    int latInternal = (int) (coords.lat * Tile::realToInternal / size) * size;
-    int lonInternal = (int) (coords.lon * Tile::realToInternal / size) * size;
+    int latInternal = (int) (coords.lat * Tile::realToInternal / tileSize) * tileSize;
+    int lonInternal = (int) (coords.lon * Tile::realToInternal / tileSize) * tileSize;
 
-    Tile tile(latInternal, lonInternal, size);
+    Tile tile(latInternal, lonInternal, tileSize);
     return std::move(tile);
 }
 

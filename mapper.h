@@ -22,7 +22,10 @@ private:
     // Tile -> priority
     // priority decreases by one on each feed if the tile is not used
     // once it reaches zero Tile is removed from tiles
+    // TODO: replace with hashmap
     std::map<Tile, int> tiles;
 
     Tile getTileAt(const Tile::GeoCoords &coords);
+
+    const int tileSize = 1000; // internal tile units
 };

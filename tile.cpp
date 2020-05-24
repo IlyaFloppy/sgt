@@ -122,6 +122,13 @@ bool operator<(const Tile &lhs, const Tile &rhs) {
            lhs.lonMax < rhs.lonMax;
 }
 
+bool operator==(const Tile &lhs, const Tile &rhs) {
+    return lhs.latMin == rhs.latMin &&
+           lhs.latMax == rhs.latMax &&
+           lhs.lonMin == rhs.lonMin &&
+           lhs.lonMax == rhs.lonMax;
+}
+
 void Tile::feed(const Pose &pose, const cv::Mat &frame) {
     Tile::GeoCoords coords(0, 0);
 

@@ -26,3 +26,7 @@ Pose::Pose(
           snapshot(snapshot),
           frameInfo(std::move(frameInfo)) {
 }
+
+double Pose::geoSize() const {
+    return fmax(frameInfo.frameWidthMeters, frameInfo.frameHeightMeters) / helper::WGS84_SMALL_LENGTH * 360;
+}

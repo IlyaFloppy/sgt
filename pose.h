@@ -1,6 +1,7 @@
 #pragma once
 
 #include "frame_snapshot.h"
+#include "helper.h"
 
 #include "Eigen/Geometry"
 
@@ -26,4 +27,6 @@ struct Pose {
          Eigen::Vector2d geo,
          const FrameSnapshot &snapshot,
          FrameInfo frameInfo);
+
+    double geoSize() const;
 };
