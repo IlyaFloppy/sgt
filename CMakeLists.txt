@@ -4,7 +4,7 @@ project(sgt)
 set(CMAKE_CXX_STANDARD 17)
 
 find_package(OpenCV REQUIRED)
-add_executable(sgt main.cpp slam.cpp slam.h mapper.cpp mapper.h pose.cpp pose.h frame_snapshot.h tile.cpp tile.h)
+add_executable(sgt main.cpp slam.cpp slam.h mapper.cpp mapper.h pose.cpp pose.h frame_snapshot.h tile.cpp tile.h helper.h)
 
 include(FindGDAL)
 include(FindTIFF)

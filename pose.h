@@ -5,18 +5,25 @@
 #include "Eigen/Geometry"
 
 struct Pose {
+    struct FrameInfo {
+        double frameWidthPx;
+        double frameHeightPx;
+        double frameWidthMeters;
+        double frameHeightMeters;
+
+        FrameInfo(double frameWidthPx, double frameHeightPx, double frameWidthMeters, double frameHeightMeters);
+    };
+
     // relative to one of previous frames when used as change, absolute values otherwise
     Eigen::Quaterniond rotation;
     Eigen::Vector3d translation;
     Eigen::Vector2d geo;
     FrameSnapshot snapshot;
+    FrameInfo frameInfo;
 
     Pose(Eigen::Quaterniond rotation,
          Eigen::Vector3d translation,
          Eigen::Vector2d geo,
-         const FrameSnapshot &snapshot)
-            : rotation(std::move(rotation)),
-              translation(std::move(translation)),
-              geo(std::move(geo)),
-              snapshot(snapshot) {};
+         const FrameSnapshot &snapshot,
+         FrameInfo frameInfo);
 };

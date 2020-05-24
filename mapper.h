@@ -17,12 +17,12 @@ public:
     void feed(const Pose &pose, const cv::Mat &frame);
 
 private:
-    GDALDriver *pDriver;
+    GDALDriverManager *pDriverManager;
 
     // Tile -> priority
     // priority decreases by one on each feed if the tile is not used
     // once it reaches zero Tile is removed from tiles
     std::map<Tile, int> tiles;
 
-    Tile const &getTileAt(double latitude, double longitude);
+    Tile getTileAt(const Tile::GeoCoords &coords);
 };

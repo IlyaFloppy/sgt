@@ -1,10 +1,13 @@
 #include "slam.h"
+#include "helper.h"
 
 SLAM::SLAM() {
     detectionMask = cv::imread("mc_mask.png", cv::IMREAD_GRAYSCALE);
 
     pixelSize = 1.4 * 1e-6; // meters
     focalLength = 1.8 * 1e-3; // meters
+    frameWidthPx = 768;
+    frameHeightPx = 576;
     frameWidthPx = 640;
     frameHeightPx = 400;
 
@@ -46,48 +49,16 @@ SLAM::SLAM() {
 
 //    framesHistory.emplace_back(std::move(FrameSnapshot()));
 
-    const int averageBetweenFrames = 3;
+    const int averageBetweenFrames = 1;
     for (int i = 0; i < averageBetweenFrames; i++) {
         poseHistory.emplace_back(Pose(
                 Eigen::Quaterniond(1, 0, 0, 0),
                 Eigen::Vector3d(0, 0, 500),
                 Eigen::Vector2d(55.761495, 37.712632),
-                FrameSnapshot()
+                FrameSnapshot(),
+                Pose::FrameInfo(frameWidthPx, frameHeightPx, 0, 0)
         ));
     }
-
-//    GDALAllRegister();
-//    const int nRows = 512;
-//    const int nCols = 512;
-//    GDALDriverManager *pDriverManager = GetGDALDriverManager();
-//    GDALDriver *pDriver = pDriverManager->GetDriverByName("GTiff");
-//    GDALDataset *pDataset = pDriver->Create("out.tiff", nCols, nRows, 1, GDALDataType::GDT_Byte, nullptr);
-//
-//    for (int i = 0; i < nRows; ++i) {
-////        auto *testRow = (uint8_t *) CPLMalloc(sizeof(uint8_t) * nCols);
-//        auto *testRow = new uint8_t[sizeof(uint8_t) * nCols];
-//        for (int j = 0; j < nCols; ++j) {
-//            testRow[j] = (i + j * i / 300 + j) % 256;
-//        }
-//        CPLErr ignored = pDataset->GetRasterBand(1)->RasterIO(
-//                GF_Write, 0, i, nCols, 1, testRow, nCols, 1, GDT_Byte, 0, 0);
-//        delete[] testRow;
-//    }
-//
-//    std::pair<double, double> latitude = {39, 38.5};
-//    std::pair<double, double> longitude = {-120, -119.5};
-//    double xMin = fmin(longitude.first, longitude.second);
-//    double yMin = fmin(latitude.first, latitude.second);
-//    double xMax = fmax(longitude.first, longitude.second);
-//    double yMax = fmax(latitude.first, latitude.second);
-//
-//    double xRes = (xMax - xMin) / nCols;
-//    double yRes = (yMax - yMin) / nRows;
-//
-//    double trans[6] = {xMin, xRes, 0, yMax, 0, -yRes};
-//    pDataset->SetGeoTransform(trans);
-////    auto err = pDataset->SetProjection("WGS_84");
-//    GDALClose(pDataset);
 }
 
 SLAM::~SLAM() {
@@ -100,6 +71,7 @@ void SLAM::feed(const cv::Mat &frame) {
     Eigen::Vector3d averageTranslation(0, 0, 0);
     Eigen::Vector2d averageGeoTranslation(0, 0);
     FrameSnapshot snapshot;
+    double frameWidthMeters = 0, frameHeightMeters = 0;
     for (auto &pose:poseHistory) {
         auto poseChange = estimatePoseChange2D(pose, frame);
         auto rotation = poseChange.rotation * pose.rotation;
@@ -119,6 +91,9 @@ void SLAM::feed(const cv::Mat &frame) {
         );
 
         snapshot = poseChange.snapshot; // use last snapshot
+
+        frameWidthMeters += poseChange.frameInfo.frameWidthMeters;
+        frameHeightMeters += poseChange.frameInfo.frameHeightMeters;
     }
     averageTranslation /= poseHistory.size();
     averageGeoTranslation /= poseHistory.size();
@@ -129,11 +104,19 @@ void SLAM::feed(const cv::Mat &frame) {
             averageRotation.z() / poseHistory.size()
     );
 
+    frameWidthMeters /= poseHistory.size();
+    frameHeightMeters /= poseHistory.size();
+
     // do we actually need this?
     // auto translationChange = averageTranslation - poseHistory.back().translation;
     // auto rotationChange = averageRotation * poseHistory.back().rotation.inverse();
 
-    auto pose = Pose(averageRotation, averageTranslation, averageGeoTranslation, snapshot);
+    auto pose = Pose(
+            averageRotation,
+            averageTranslation,
+            averageGeoTranslation,
+            snapshot,
+            Pose::FrameInfo(frameWidthPx, frameHeightPx, frameWidthMeters, frameHeightMeters));
     poseHistory.emplace_back(pose);
     poseHistory.pop_front();
 
@@ -178,7 +161,7 @@ void SLAM::savePathAsImage(const std::string &name, bool volumetric) {
     if (volumetric) {
         plt::plot3(x, y, z);
     } else {
-        plt::plot(lat, lon);
+        plt::plot(lon, lat);
         plt::axis("equal");
     }
     plt::grid(true);
@@ -276,7 +259,8 @@ Pose SLAM::estimatePoseChange3D(const FrameSnapshot &from, const cv::Mat &frame)
                 Eigen::Quaterniond(1, 0, 0, 0),
                 Eigen::Vector3d(0, 0, 0),
                 Eigen::Vector2d(0, 0),
-                snapshot
+                snapshot,
+                Pose::FrameInfo(frameWidthPx, frameHeightPx, 0, 0)
         );
     }
 
@@ -313,7 +297,13 @@ Pose SLAM::estimatePoseChange3D(const FrameSnapshot &from, const cv::Mat &frame)
     // TODO: estimatePoseChange3D is not used anyway
     Eigen::Vector2d geoTranslation(0, 0);
 
-    return Pose(rotationDerivative, translationDifference, geoTranslation, snapshot);
+    return Pose(
+            rotationDerivative,
+            translationDifference,
+            geoTranslation,
+            snapshot,
+            Pose::FrameInfo(frameWidthPx, frameHeightPx, 0, 0)
+    );
 }
 
 Pose SLAM::estimatePoseChange2D(const Pose &from, const cv::Mat &frame) {
@@ -323,7 +313,8 @@ Pose SLAM::estimatePoseChange2D(const Pose &from, const cv::Mat &frame) {
                 Eigen::Quaterniond(1, 0, 0, 0),
                 Eigen::Vector3d(0, 0, 0),
                 Eigen::Vector2d(0, 0),
-                snapshot
+                snapshot,
+                Pose::FrameInfo(frameWidthPx, frameHeightPx, 0, 0)
         );
     }
 
@@ -391,15 +382,15 @@ Pose SLAM::estimatePoseChange2D(const Pose &from, const cv::Mat &frame) {
             translation2DPx.y() / frameHeightPx * frameHeightMeters
     );
 
+    auto rotatedTranslation =
+            from.rotation.toRotationMatrix().block(0, 0, 2, 2) * translation2DMeters;
 
-    const double WGS84_BIG_RAD = 6378137;
-    const double WGS84_SMALL_RAD = 6356752.3142;
     // assume translation is small
     // x -> north, y -> east
     double latitude = from.geo.x();
     double longitude = from.geo.y();
-    double latitudeChange = -translation2DMeters.x() / WGS84_SMALL_RAD * 2 * M_PI;
-    double longitudeChange = translation2DMeters.y() / WGS84_BIG_RAD * 2 * M_PI * cos(latitude);
+    double latitudeChange = rotatedTranslation.y() / helper::WGS84_SMALL_RAD * 2 * M_PI;
+    double longitudeChange = -rotatedTranslation.x() / helper::WGS84_BIG_RAD * 2 * M_PI * cos(latitude / 180 * M_PI);
     Eigen::Vector2d geoTranslation(latitudeChange, longitudeChange);
 
     return Pose(
@@ -415,6 +406,7 @@ Pose SLAM::estimatePoseChange2D(const Pose &from, const cv::Mat &frame) {
                     from.translation.z() * (1 - scale)
             ),
             geoTranslation,
-            snapshot
+            snapshot,
+            Pose::FrameInfo(frameWidthPx, frameHeightPx, frameWidthMeters, frameHeightMeters)
     );
 }

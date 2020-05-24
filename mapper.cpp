@@ -5,31 +5,44 @@
 #include "mapper.h"
 
 Mapper::Mapper() {
-    GDALDriverManager *pDriverManager = GetGDALDriverManager();
-    pDriver = pDriverManager->GetDriverByName("GTiff");
 }
 
 Mapper::~Mapper() {
-    GDALDestroyDriverManager();
+    for (const auto&[tile, necessity]:tiles) {
+        tile.write();
+    }
 }
 
 void Mapper::feed(const Pose &pose, const cv::Mat &frame) {
-    // TODO: save frames into tiles
+
+    auto coords = Tile::GeoCoords(pose.geo.x(), pose.geo.y());
+    Tile tile = getTileAt(coords);
+    tile.feed(pose, frame);
+    tiles[tile] = 20;
+
+    auto it = tiles.begin();
+    while (it != tiles.end()) {
+        if (it->second == 0) {
+            it->first.write();
+            it = tiles.erase(it);
+        } else {
+            it++->second -= 1;
+        }
+    }
 }
 
-Tile const &Mapper::getTileAt(double latitude, double longitude) {
+Tile Mapper::getTileAt(const Tile::GeoCoords &coords) {
     for (auto const &t : tiles) {
-        if (t.first.contains(latitude, longitude)) {
+        if (t.first.contains(coords)) {
             return t.first;
         }
     }
 
-    int size = 10; // internal units
-    int latInternal = (int)(latitude * Tile::realToInternal / size) * size;
-    int lonInternal = (int)(longitude * Tile::realToInternal / size) * size;
+    int size = 500; // internal units
+    int latInternal = (int) (coords.lat * Tile::realToInternal / size) * size;
+    int lonInternal = (int) (coords.lon * Tile::realToInternal / size) * size;
 
-    Tile tile(latInternal, lonInternal, size, pDriver);
-    tiles[tile] = 10;
-    return getTileAt(latitude, longitude);
+    Tile tile(latInternal, lonInternal, size);
+    return std::move(tile);
 }
 
