@@ -2,7 +2,7 @@
 #include "helper.h"
 
 SLAM::SLAM() {
-    detectionMask = cv::imread("mc_mask.png", cv::IMREAD_GRAYSCALE);
+//    detectionMask = cv::imread("mc_mask.png", cv::IMREAD_GRAYSCALE);
 
     pixelSize = 1.4 * 1e-6; // meters
     focalLength = 1.8 * 1e-3; // meters
@@ -11,7 +11,7 @@ SLAM::SLAM() {
     frameWidthPx = 640;
     frameHeightPx = 400;
 
-    pixelSize *= 100;
+    pixelSize *= 10;
 
     cameraMatrix = cv::Mat1d::zeros(3, 3);
     cameraMatrix.at<double>(0, 0) = 250.77948496;
@@ -49,7 +49,7 @@ SLAM::SLAM() {
 
 //    framesHistory.emplace_back(std::move(FrameSnapshot()));
 
-    const int averageBetweenFrames = 1;
+    const int averageBetweenFrames = 3;
     for (int i = 0; i < averageBetweenFrames; i++) {
         poseHistory.emplace_back(Pose(
                 Eigen::Quaterniond(1, 0, 0, 0),
@@ -66,7 +66,7 @@ SLAM::~SLAM() {
 };
 
 // TODO: fill map with projections
-void SLAM::feed(const cv::Mat &frame) {
+void SLAM::feed(cv::Mat &frame) {
     Eigen::Quaterniond averageRotation(0, 0, 0, 0);
     Eigen::Vector3d averageTranslation(0, 0, 0);
     Eigen::Vector2d averageGeoTranslation(0, 0);
@@ -75,8 +75,6 @@ void SLAM::feed(const cv::Mat &frame) {
     for (auto &pose:poseHistory) {
         auto poseChange = estimatePoseChange2D(pose, frame);
         auto rotation = poseChange.rotation * pose.rotation;
-        // TODO: premultiply change by rotation
-        // auto translation = poseChange.translation + pose.translation;
         auto translation = pose.rotation.toRotationMatrix() * poseChange.translation + pose.translation;
         auto geoTranslation = pose.rotation.toRotationMatrix()
                                       .block(0, 0, 2, 2) * poseChange.geo + pose.geo;
@@ -126,19 +124,20 @@ void SLAM::feed(const cv::Mat &frame) {
     mapper.feed(pose, frame);
 
     cv::Mat matchesImage;
-    cv::drawMatches(
-            frame,
-            pose.snapshot.keypoints,
-            frame,
-            pose.snapshot.rKeypoints,
-            pose.snapshot.matches,
-            matchesImage,
-            cv::Scalar::all(-1),
-            cv::Scalar::all(-1),
-            std::vector<char>(),
-            cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS
-    );
-    imshow("matches", matchesImage);
+//    cv::drawMatches(
+//            frame,
+//            pose.snapshot.keypoints,
+//            frame,
+//            pose.snapshot.rKeypoints,
+//            pose.snapshot.matches,
+//            matchesImage,
+//            cv::Scalar::all(-1),
+//            cv::Scalar::all(-1),
+//            std::vector<char>(),
+//            cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS
+//    );
+//    imshow("matches", matchesImage);
+    imshow("frame", frame);
 }
 
 void SLAM::savePathAsImage(const std::string &name, bool volumetric) {
@@ -268,9 +267,6 @@ Pose SLAM::estimatePoseChange3D(const FrameSnapshot &from, const cv::Mat &frame)
     essential = findEssentialMat(snapshot.points, snapshot.rPoints, cameraMatrix, cv::RANSAC, 0.999, 0.15, mask);
     recoverPose(essential, snapshot.points, snapshot.rPoints, cameraMatrix, rotation, translation, 99, mask);
 
-    // 1
-//    estTranslation += estRotation.toRotationMatrix() * Eigen::Vector3d(
-    // 2
     auto translationDifference = Eigen::Vector3d(
             translation.at<double>(0, 0),
             translation.at<double>(1, 0),
@@ -329,6 +325,47 @@ Pose SLAM::estimatePoseChange2D(const Pose &from, const cv::Mat &frame) {
     // translations
     Eigen::MatrixXd translations(matches, 2);
 
+    /* Eigen::MatrixXd fromKp(matches * 2, 6);
+    Eigen::MatrixXd toKp(matches * 2, 1);
+
+    int matchIdx = 0;
+    for (auto &match : snapshot.matches) {
+        auto currentFramePoint = snapshot.keypoints[match.queryIdx].pt;
+        auto prevFramePoint = snapshot.rKeypoints[match.trainIdx].pt;
+
+        fromKp(matchIdx * 2, 0) = prevFramePoint.x;
+        fromKp(matchIdx * 2, 1) = prevFramePoint.y;
+        fromKp(matchIdx * 2, 2) = 0;
+        fromKp(matchIdx * 2, 3) = 0;
+        fromKp(matchIdx * 2, 4) = 1;
+        fromKp(matchIdx * 2, 5) = 0;
+        fromKp(matchIdx * 2 + 1, 0) = 0;
+        fromKp(matchIdx * 2 + 1, 1) = 0;
+        fromKp(matchIdx * 2 + 1, 2) = prevFramePoint.x;
+        fromKp(matchIdx * 2 + 1, 3) = prevFramePoint.y;
+        fromKp(matchIdx * 2 + 1, 4) = 0;
+        fromKp(matchIdx * 2 + 1, 5) = 1;
+
+        toKp(matchIdx, 0) = currentFramePoint.x;
+        toKp(matchIdx + 1, 0) = currentFramePoint.y;
+    }
+
+    auto fromKpT = fromKp.transpose();
+    auto transform = (fromKpT * fromKp).inverse() * fromKpT * toKp;
+
+    double m1 = transform(0, 0);
+    double m2 = transform(1, 0);
+    double m3 = transform(2, 0);
+    double m4 = transform(3, 0);
+    double tx = transform(4, 0);
+    double ty = transform(5, 0);
+
+    double angle = 2 * atan2(-m2 * m2 - sqrt(1 - m2 * m2) + 1, m2 * sqrt(1 - m2 * m2));
+    double scale = m1 / sqrt(1 - m2 * m2);
+    Eigen::Vector2d translation2DPx(tx, ty);
+
+    std::cerr << transform << std::endl; */
+
     int match1Idx = 0;
     int match2Idx = 0;
     int lineIdx = 0;
@@ -374,9 +411,9 @@ Pose SLAM::estimatePoseChange2D(const Pose &from, const cv::Mat &frame) {
     double angle = aChange.mean();
 
     auto translation2DPx = translations.colwise().mean();
-    double distnaceToBottom = from.translation.z();
-    double frameWidthMeters = frameWidthPx * pixelSize * (distnaceToBottom / focalLength - 1);
-    double frameHeightMeters = frameHeightPx * pixelSize * (distnaceToBottom / focalLength - 1);
+    double distanceToBottom = from.translation.z();
+    double frameWidthMeters = frameWidthPx * pixelSize * (distanceToBottom / focalLength - 1);
+    double frameHeightMeters = frameHeightPx * pixelSize * (distanceToBottom / focalLength - 1);
     auto translation2DMeters = Eigen::Vector2d(
             translation2DPx.x() / frameWidthPx * frameWidthMeters,
             translation2DPx.y() / frameHeightPx * frameHeightMeters
@@ -389,8 +426,8 @@ Pose SLAM::estimatePoseChange2D(const Pose &from, const cv::Mat &frame) {
     // x -> north, y -> east
     double latitude = from.geo.x();
     double longitude = from.geo.y();
-    double latitudeChange = rotatedTranslation.y() / helper::WGS84_SMALL_RAD * 2 * M_PI;
-    double longitudeChange = -rotatedTranslation.x() / helper::WGS84_BIG_RAD * 2 * M_PI * cos(latitude / 180 * M_PI);
+    double latitudeChange = rotatedTranslation.y() / helper::WGS84_SMALL_LENGTH * 180;
+    double longitudeChange = -rotatedTranslation.x() / helper::WGS84_BIG_LENGTH * 180 * cos(latitude / 180 * M_PI);
     Eigen::Vector2d geoTranslation(latitudeChange, longitudeChange);
 
     return Pose(

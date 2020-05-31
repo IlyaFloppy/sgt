@@ -30,3 +30,10 @@ Pose::Pose(
 double Pose::geoSize() const {
     return fmax(frameInfo.frameWidthMeters, frameInfo.frameHeightMeters) / helper::WGS84_SMALL_LENGTH * 360;
 }
+
+bool Pose::isPointInFrame(double x, double y) const {
+    return (x > 10 &&
+            x <= frameInfo.frameWidthPx - 10 &&
+            y > 10 &&
+            y <= frameInfo.frameHeightPx - 10);
+}

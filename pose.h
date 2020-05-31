@@ -29,4 +29,6 @@ struct Pose {
          FrameInfo frameInfo);
 
     double geoSize() const;
+
+    bool isPointInFrame(double x, double y) const;
 };

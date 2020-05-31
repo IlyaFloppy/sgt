@@ -4,12 +4,11 @@
 
 #include "tile.h"
 
-Tile::Tile(int lat, int lon, int size) :
+Tile::Tile(int lat, int lon) :
         latMin(lat - size / 2),
         latMax(lat + size / 2),
         lonMin(lon - size / 2),
-        lonMax(lon + size / 2),
-        size(size) {
+        lonMax(lon + size / 2) {
     data = new uint8_t[nRows * nCols];
     std::string filename =
             "tiles/" +
@@ -39,8 +38,7 @@ Tile::Tile(const Tile &tile)
         : latMin(tile.latMin),
           latMax(tile.latMax),
           lonMin(tile.lonMin),
-          lonMax(tile.lonMax),
-          size(tile.size) {
+          lonMax(tile.lonMax) {
     data = new uint8_t[nRows * nCols];
     for (int i = 0; i < nRows * nCols; ++i) {
         data[i] = tile.data[i];
@@ -51,8 +49,7 @@ Tile::Tile(Tile &&tile) noexcept
         : latMin(tile.latMin),
           latMax(tile.latMax),
           lonMin(tile.lonMin),
-          lonMax(tile.lonMax),
-          size(tile.size) {
+          lonMax(tile.lonMax) {
     data = tile.data;
     tile.data = nullptr;
 }
@@ -115,6 +112,13 @@ bool Tile::contains(GeoCoords coords) const {
             lonInternal < lonMax);
 }
 
+bool Tile::contains(double latInternal, double lonInternal) const {
+    return (latInternal >= latMin &&
+            latInternal < latMax &&
+            lonInternal >= lonMin &&
+            lonInternal < lonMax);
+}
+
 bool operator<(const Tile &lhs, const Tile &rhs) {
     return lhs.latMin < rhs.latMin ||
            lhs.latMax < rhs.latMax ||
@@ -129,37 +133,10 @@ bool operator==(const Tile &lhs, const Tile &rhs) {
            lhs.lonMax == rhs.lonMax;
 }
 
-void Tile::feed(const Pose &pose, const cv::Mat &frame) {
-    Tile::GeoCoords coords(0, 0);
+void Tile::set(double latInternal, double lonInternal, uint8_t value) {
+    int x = (int) ((lonInternal - lonMin) / size * nCols);
+    int y = (int) ((latInternal - latMin) / size * nRows);
+    y = nRows - 1 - y;
 
-    for (int y = 0; y < nRows; ++y) {
-        coords.lat = (latMin + (double) y * size / nRows) / realToInternal;
-        for (int x = 0; x < nCols; ++x) {
-            coords.lon = (lonMin + (double) x * size / nCols) / realToInternal;
-
-            auto deltaGeoMeters = Eigen::Vector2d(
-                    (coords.lat - pose.geo.x()) / 2 / M_PI * helper::WGS84_SMALL_RAD,
-                    (coords.lon - pose.geo.y()) / 2 / M_PI * helper::WGS84_BIG_RAD / cos(coords.lat / 180 * M_PI)
-            );
-
-            auto deltaFrameMeters = pose.rotation.toRotationMatrix()
-                                            .block(0, 0, 2, 2) * deltaGeoMeters;
-
-            auto pixelLocation = Eigen::Vector2i(
-                    (deltaFrameMeters.x() / pose.frameInfo.frameWidthMeters + 0.5) * pose.frameInfo.frameWidthPx,
-                    (deltaFrameMeters.y() / pose.frameInfo.frameHeightMeters + 0.5) * pose.frameInfo.frameHeightPx
-            );
-
-            if (pixelLocation.x() < 10 ||
-                pixelLocation.x() >= pose.frameInfo.frameWidthPx - 10 ||
-                pixelLocation.y() < 10 ||
-                pixelLocation.y() >= pose.frameInfo.frameHeightPx - 10) {
-                continue;
-            } else {
-                // TODO: antialias
-                uint8_t pixel = frame.at<uint8_t>(pixelLocation.x(), pixelLocation.y());
-                data[x + y * nCols] = pixel;
-            }
-        }
-    }
+    data[x + y * nCols] = value;
 }

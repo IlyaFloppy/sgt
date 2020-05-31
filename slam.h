@@ -26,7 +26,7 @@ public:
 
     ~SLAM();
 
-    void feed(const cv::Mat &frame);
+    void feed(cv::Mat &frame);
 
     void savePathAsImage(const std::string &name, bool volumetric);
 

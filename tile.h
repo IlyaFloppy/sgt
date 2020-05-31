@@ -25,17 +25,16 @@ public:
     const int latMax;
     const int lonMin;
     const int lonMax;
-    const int size;
+    static const int size = 2000;
 
-    const int nRows = 128;
-    const int nCols = 128;
+    const int nRows = 256 * 2;
+    const int nCols = 256 * 2;
+
+    bool finalized = false;
 
     uint8_t *data;
 
-    Tile(int lat,
-         int lon,
-         int size
-    );
+    Tile(int lat, int lon);
 
     Tile(const Tile &tile);
 
@@ -45,9 +44,11 @@ public:
 
     void write() const;
 
-    void feed(const Pose &pose, const cv::Mat &frame);
+    void set(double latInternal, double lonInternal, uint8_t value);
 
     bool contains(GeoCoords coords) const;
+
+    bool contains(double latInternal, double lonInternal) const;
 
     friend bool operator<(const Tile &lhs, const Tile &rhs);
 
