@@ -6,34 +6,52 @@ SLAM::SLAM() {
 
     pixelSize = 1.4 * 1e-6; // meters
     focalLength = 1.8 * 1e-3; // meters
-    frameWidthPx = 768;
-    frameHeightPx = 576;
+
     frameWidthPx = 640;
-    frameHeightPx = 400;
+    frameHeightPx = 480;
 
     pixelSize *= 10;
 
     cameraMatrix = cv::Mat1d::zeros(3, 3);
-    cameraMatrix.at<double>(0, 0) = 250.77948496;
+    distCoeffs = cv::Mat1d::zeros(5, 1);
+
+    // minecraft at 640x400
+    cameraMatrix.at<double>(0, 0) = 250; //250.77948496;
     cameraMatrix.at<double>(0, 1) = 0;
     cameraMatrix.at<double>(0, 2) = 320;
     cameraMatrix.at<double>(1, 0) = 0;
-    cameraMatrix.at<double>(1, 1) = 250.59048828;
+    cameraMatrix.at<double>(1, 1) = 250; //250.59048828;
     cameraMatrix.at<double>(1, 2) = 200;
     cameraMatrix.at<double>(2, 0) = 0;
     cameraMatrix.at<double>(2, 1) = 0;
     cameraMatrix.at<double>(2, 2) = 1;
-
-    distCoeffs = cv::Mat1d::zeros(5, 1);
     /*distCoeffs.at<double>(0, 0) = 2.85131070e-04;
     distCoeffs.at<double>(1, 0) = -5.09885755e-04;
     distCoeffs.at<double>(2, 0) = 4.23892455e-07;
     distCoeffs.at<double>(3, 0) = -3.94307962e-05;
     distCoeffs.at<double>(4, 0) = 2.13458176e-04;*/
 
+    // iphone xr camera at 640x480
+    cameraMatrix.at<double>(0, 0) = 487.8492598; //250.77948496;
+    cameraMatrix.at<double>(0, 1) = 0;
+    cameraMatrix.at<double>(0, 2) = 315.759412;
+    cameraMatrix.at<double>(1, 0) = 0;
+    cameraMatrix.at<double>(1, 1) = 487.8363496; //250.59048828;
+    cameraMatrix.at<double>(1, 2) = 227.98274297;
+    cameraMatrix.at<double>(2, 0) = 0;
+    cameraMatrix.at<double>(2, 1) = 0;
+    cameraMatrix.at<double>(2, 2) = 1;
+
+    distCoeffs.at<double>(0, 0) = 1.93099278e-01;
+    distCoeffs.at<double>(1, 0) = -8.82239994e-01;
+    distCoeffs.at<double>(2, 0) = 7.81156833e-05;
+    distCoeffs.at<double>(3, 0) = 6.71192996e-04;
+    distCoeffs.at<double>(4, 0) = 1.18223036e+00;
+
+
     // detector = cv::FastFeatureDetector::create();
     extractor = cv::ORB::create(
-            300,
+            100,
             1.2,
             3,
             31,
@@ -49,7 +67,7 @@ SLAM::SLAM() {
 
 //    framesHistory.emplace_back(std::move(FrameSnapshot()));
 
-    const int averageBetweenFrames = 3;
+    const int averageBetweenFrames = 6;
     for (int i = 0; i < averageBetweenFrames; i++) {
         poseHistory.emplace_back(Pose(
                 Eigen::Quaterniond(1, 0, 0, 0),
@@ -65,7 +83,6 @@ SLAM::~SLAM() {
     GDALDestroyDriverManager();
 };
 
-// TODO: fill map with projections
 void SLAM::feed(cv::Mat &frame) {
     Eigen::Quaterniond averageRotation(0, 0, 0, 0);
     Eigen::Vector3d averageTranslation(0, 0, 0);
@@ -137,7 +154,7 @@ void SLAM::feed(cv::Mat &frame) {
 //            cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS
 //    );
 //    imshow("matches", matchesImage);
-    imshow("frame", frame);
+//    imshow("frame", frame);
 }
 
 void SLAM::savePathAsImage(const std::string &name, bool volumetric) {

@@ -14,7 +14,6 @@ objpoints = []
 # Creating vector to store vectors of 2D points for each checkerboard image
 imgpoints = []
 
-
 # Defining the world coordinates for 3D points
 objp = np.zeros((1, CHECKERBOARD[0] * CHECKERBOARD[1], 3), np.float32)
 objp[0, :, :2] = np.mgrid[0:CHECKERBOARD[0], 0:CHECKERBOARD[1]].T.reshape(-1, 2)
@@ -27,7 +26,13 @@ used_images = 0
 
 for fname in images:
     img = cv2.imread(fname)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = None
+    try:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    except:
+        print(f'failed to use {fname}')
+        continue
+
     # Find the chess board corners
     # If desired number of corners are found in the image then ret = true
     ret, corners = cv2.findChessboardCorners(gray, CHECKERBOARD, cv2.CALIB_CB_ADAPTIVE_THRESH +
@@ -64,11 +69,11 @@ detected corners (imgpoints)
 """
 ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
 print("Used images: {}".format(used_images))
-print("Camera matrix : \n")
+print("\nCamera matrix:")
 print(mtx)
-print("dist : \n")
+print("\ndist:")
 print(dist)
-print("rvecs : \n")
+print("\nrvecs:")
 print(rvecs)
-print("tvecs : \n")
+print("\ntvecs:")
 print(tvecs)
