@@ -45,11 +45,11 @@ void Mapper::feed(const Pose &pose, cv::Mat &frame) {
     for (int x = -width / 2; x < width / 2; x += 1) {
         for (int y = -height / 2; y < height / 2; y += 1) {
             // getInternalCoords is almost linear; interpolate between corners
-            // getInternalCoords(pose, x, y, lat, lon);
-            // lat = pose.geo.x() * Tile::realToInternal - lat;
-            // lon = pose.geo.y() * Tile::realToInternal + lon;
-            lat = rLat1 * x + rLat2 * y + tLat;
-            lon = rLon1 * x + rLon2 * y + tLon;
+            getInternalCoords(pose, x, y, lat, lon);
+            lat = pose.geo.x() * Tile::realToInternal - lat;
+            lon = pose.geo.y() * Tile::realToInternal + lon;
+//            lat = rLat1 * x + rLat2 * y + tLat;
+//            lon = rLon1 * x + rLon2 * y + tLon;
             fx = x + width / 2;
             fy = y + height / 2;
             Tile *tile = tiles.getTileAt(lat, lon);

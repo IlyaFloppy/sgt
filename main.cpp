@@ -14,8 +14,9 @@ int main() {
 //    cv::VideoCapture capture = cv::VideoCapture("mc.mov");
 //    cv::VideoCapture capture = cv::VideoCapture("mcnd.mov");
 //    cv::VideoCapture capture = cv::VideoCapture("amap.mov");
-    cv::VideoCapture capture = cv::VideoCapture("txt.mov");
+//    cv::VideoCapture capture = cv::VideoCapture("txt.mov");
 //    cv::VideoCapture capture = cv::VideoCapture("sample_mpg.avi");
+    cv::VideoCapture capture = cv::VideoCapture("xr480.mov");
 
     SLAM slam;
 
@@ -37,7 +38,6 @@ int main() {
     auto server = builder.BuildAndStart();
     std::cout << "ready" << std::endl;
 
-//    int x = 5;
     while (true) {
 //        if (!capture.isOpened()) {
 //            break;
@@ -46,15 +46,11 @@ int main() {
 
         lock.lock();
         if (!frame.empty()) {
-            std::cout << "size: " << frame.channels() << std::endl;
             cv::cvtColor(frame, frame, cv::COLOR_BGR2GRAY);
             cv::resize(frame, frame, cv::Size(640, 480));
             slam.feed(frame);
-//            x--;
-//            if (x < 0) {
-//                return 0;
-//            }
 
+            cv::imshow("frame", frame);
             frame = cv::Mat();
         }
         lock.unlock();

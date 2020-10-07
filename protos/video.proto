@@ -1,41 +1,45 @@
 syntax = "proto3";
 
+option go_package = ".;proto";
+package proto;
+
 message VideoFrame {
-  // image
-  bytes data = 1;
-  int32 width = 2;
-  int32 height = 3;
+    // image
+    bytes data = 1;
+    int32 width = 2;
+    int32 height = 3;
 
-  // orientation
-  double qw = 4;
-  double qx = 5;
-  double qy = 6;
-  double qz = 7;
+    // orientation
+    double qw = 4;
+    double qx = 5;
+    double qy = 6;
+    double qz = 7;
 
-  // gps
-  double latitude = 8;
-  double longitude = 9;
+    // gps
+    double latitude = 8;
+    double longitude = 9;
 
-  // gyroscope
-  double wx = 10;
-  double wy = 11;
-  double wz = 12;
+    // gyroscope
+    double wx = 10;
+    double wy = 11;
+    double wz = 12;
 
-  // accelerometer
-  double ax = 13;
-  double ay = 14;
-  double az = 15;
+    // accelerometer
+    double ax = 13;
+    double ay = 14;
+    double az = 15;
 
-  // magnetometer
-  double mx = 16;
-  double my = 17;
-  double mz = 18;
+    // magnetometer
+    double mx = 16;
+    double my = 17;
+    double mz = 18;
 }
 
 message VoidEntity {
-  string message = 1;
+    string message = 1;
 }
 
 service GrpcVideoCapture {
-  rpc Post(VideoFrame) returns (VoidEntity) {}
+    rpc Post (VideoFrame) returns (VoidEntity) {
+    }
 }

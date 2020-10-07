@@ -10,7 +10,8 @@ SLAM::SLAM() {
     frameWidthPx = 640;
     frameHeightPx = 480;
 
-    pixelSize *= 10;
+    pixelSize = 5e-6;
+    focalLength = 0.5e-3;
 
     cameraMatrix = cv::Mat1d::zeros(3, 3);
     distCoeffs = cv::Mat1d::zeros(5, 1);
@@ -242,7 +243,7 @@ std::tuple<FrameSnapshot, bool> SLAM::makeSnapshot(const cv::Mat &_frame, const 
                     std::to_string(matches.size()) +
                     " -> " +
                     std::to_string(filteredMatches.size()));
-        std::cout << msg << std::endl;
+//        std::cout << msg << std::endl;
         // TODO: something
         // return {relativity, true};
         return {FrameSnapshot(keypoints, {}, {}, {}, {}, features), true};

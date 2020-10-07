@@ -12,6 +12,7 @@
 
 
 using namespace grpc;
+using namespace proto;
 
 using FrameConsumer = std::function<void(cv::Mat)>;
 
